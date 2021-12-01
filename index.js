@@ -41,26 +41,31 @@ class MutiSignKeyring extends EventEmitter {
   }
 
   addAccounts(params) {
-    const { publicKeys = [], privateKeys = [], threshold = 1 } = params
+    const { publicKeys = [], privateKeys = [], thresHold = 1 } = params
+    // console.log({ publicKeys, privateKeys, thresHold })
     return new Promise((resolve, reject) => {
       try {
         utils.multiSign
-          .createMultiEd25519KeyShard(publicKeys, privateKeys, threshold)
+          .createMultiEd25519KeyShard(publicKeys, privateKeys, thresHold)
           .then((shard) => {
+            // console.log({ shard })
             const multiAccount = utils.account.showMultiEd25519Account(shard);
+            if (Object.keys(this.accounts).includes(multiAccount.address)) {
+              reject(new Error('address already exists'))
+            }
             this.accounts[multiAccount.address] = multiAccount;
             return resolve(Object.keys(this.accounts))
           });
 
       } catch (e) {
         log.Error(e)
-        return reject(e)
+        reject(e)
       }
     })
   }
 
   getAccounts() {
-    console.log(this.accounts)
+    // console.log(this.accounts)
     return Promise.resolve(Object.keys(this.accounts))
   }
 
@@ -155,20 +160,9 @@ class MutiSignKeyring extends EventEmitter {
   }
 
   // get public key
-  getPublicKeyFor(withAccount, opts = {}) {
-    const privKey = this.getPrivateKeyFor(withAccount, opts);
-    const privKeyStr = stcUtil.addHexPrefix(privKey.toString('hex'))
-    const publicKey = encoding.privateKeyToPublicKey(privKeyStr)
-    return Promise.resolve(publicKey)
-  }
-
-  getPrivateKeyFor(address, opts = {}) {
-    if (!address) {
-      throw new Error('Must specify address.');
-    }
-    const wallet = this._getWalletForAccount(address, opts)
-    const privKey = stcUtil.toBuffer(wallet.getPrivateKey())
-    return privKey;
+  getPublicKeyFor(address) {
+    const account = this._getAccountForAddress(address)
+    return Promise.resolve(account.publicKey)
   }
 
   // returns an address specific to an app
@@ -187,9 +181,9 @@ class MutiSignKeyring extends EventEmitter {
   }
 
   // exportAccount should return a hex-encoded private key:
-  exportAccount(address, opts = {}) {
-    const wallet = this._getWalletForAccount(address, opts)
-    return Promise.resolve(wallet.getPrivateKey().toString('hex'))
+  exportAccount(address) {
+    const account = this._getAccountForAddress(address)
+    return Promise.resolve(account.privateKey)
   }
 
   removeAccount(address) {
@@ -199,27 +193,20 @@ class MutiSignKeyring extends EventEmitter {
     this.wallets = this.wallets.filter(w => stcUtil.bufferToHex(w.getAddress()).toLowerCase() !== address.toLowerCase())
   }
 
-  getReceiptIdentifier(address, opts = {}) {
-    const wallet = this._getWalletForAccount(address, opts)
-    return Promise.resolve(wallet.getReceiptIdentifier())
+  getReceiptIdentifier(address) {
+    const account = this._getAccountForAddress(address)
+    return Promise.resolve(account.receiptIdentifier)
   }
 
   /* PRIVATE METHODS */
 
-  _getWalletForAccount(account, opts = {}) {
-    const address = sigUtil.normalize(account)
-    let wallet = this.wallets.find(w => stcUtil.bufferToHex(w.getAddress()) === address)
-    if (!wallet) throw new Error('Simple Keyring - Unable to find matching address.')
-
-    if (opts.withAppKeyOrigin) {
-      const privKey = wallet.getPrivateKey()
-      const appKeyOriginBuffer = Buffer.from(opts.withAppKeyOrigin, 'utf8')
-      const appKeyBuffer = Buffer.concat([privKey, appKeyOriginBuffer])
-      const appKeyPrivKey = stcUtil.keccak(appKeyBuffer, 256)
-      wallet = Wallet.fromPrivateKey(appKeyPrivKey)
+  _getAccountForAddress(address) {
+    const _address = sigUtil.normalize(address)
+    let account = this.accounts[_address]
+    if (!account) {
+      throw new Error('MultiSign Keyring - Unable to find matching address.')
     }
-
-    return wallet
+    return account
   }
 
 }
