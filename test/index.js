@@ -42,12 +42,24 @@ const tom = {
   'private_key': '0x359059828e89fe42dddd5f9571a0c623b071379fc6287c712649dcc8c77f5eb4'
 }
 
+const shardAlice = {
+  address: '0xb555d8b06fed69769821e189b5168870',
+  privateKey: '0x030201547c6a1ef36e9e99865ce7ac028ee79aff404d279b568272bc7154802d4856bbc95ddc2b2926d1a451ea68fa74274aa04af97d8e2aefccb297e6ef61992d42e8e8cdd5b17a37fe7e8fe446d067e7a9907cf7783aca204ccb623972176614c0a0a9e47d270d2ce33b1475f500f3b9a773eb966f3f8ab5ceb738d52262bbe10cb2',
+  publicKey: '0x547c6a1ef36e9e99865ce7ac028ee79aff404d279b568272bc7154802d4856bbc95ddc2b2926d1a451ea68fa74274aa04af97d8e2aefccb297e6ef61992d42e8e8cdd5b17a37fe7e8fe446d067e7a9907cf7783aca204ccb623972176614c0a002',
+  receiptIdentifier: 'stc1pk42a3vr0a45hdxppuxym295gwq38kuqj',
+}
+
 describe('multi-keyring', () => {
 
   let keyring
-  beforeEach(() => {
+  beforeEach(async () => {
     keyring = new MutiSignKeyring()
     // console.log(keyring)
+    const publicKeys = [bob.public_key, tom.public_key];
+    const privateKeys = [alice.private_key];
+
+    const shardAlice = await keyring.addAccounts({ publicKeys, privateKeys, thresHold })
+    // console.log({ shardAlice })
   })
 
   describe('Keyring.type', () => {
@@ -64,44 +76,22 @@ describe('multi-keyring', () => {
     })
   })
 
-  describe('#serialize empty wallets.', () => {
+  describe('#serialize empty accounts.', () => {
     it('serializes an empty array', async () => {
+      keyring = new MutiSignKeyring()
       const output = await keyring.serialize()
       assert.deepEqual(output, [])
     })
   })
 
-  describe('#getReceiptIdentifier', () => {
-    it('constructs', async () => {
-      const keyring = new MutiSignKeyring([{ privateKey: testAccount.privateKey, publicKey: testAccount.publicKey }])
-
-      keyring.getReceiptIdentifier(testAccount.address)
-        .then((receiptIdentifier) => {
-          console.log(receiptIdentifier)
-          assert.equal(receiptIdentifier, testAccount.receiptIdentifier)
-        })
-    })
-  })
-
   describe('#addAccount', () => {
     it('add alice', async () => {
-      const publicKeys = [bob.public_key, tom.public_key];
-      const privateKeys = [alice.private_key];
-
-      const shardAlice = await keyring.addAccounts({ publicKeys, privateKeys, thresHold })
-      console.log({ shardAlice })
       const accounts = await keyring.getAccounts()
       console.log({ accounts })
       console.log(keyring)
-      assert.equal(shardAlice[0], accounts[0], 'accounts match expected')
+      assert.equal(shardAlice.address, accounts[0], 'accounts match expected')
     })
-    it('add bob & tom in a same terminal', async () => {
-      const publicKeys = [alice.public_key, tom.public_key];
-      const privateKeys = [bob.private_key];
-
-      const shardBob = await keyring.addAccounts({ publicKeys, privateKeys, thresHold })
-      console.log({ shardBob })
-
+    it('add alice & tom in a same terminal', async () => {
       let shardTom
       try {
         const publicKeys = [alice.public_key, bob.public_key];
@@ -115,53 +105,58 @@ describe('multi-keyring', () => {
       }
       const accounts = await keyring.getAccounts()
       console.log({ accounts })
-      assert.equal(shardBob[0], accounts[0], 'accounts match expected')
+      assert.equal(shardAlice.address, accounts[0], 'accounts match expected')
     })
   })
 
   describe('#export privateKey', () => {
     it('exportAccount', async () => {
-      const privateKeyExpected = '0x030201547c6a1ef36e9e99865ce7ac028ee79aff404d279b568272bc7154802d4856bbc95ddc2b2926d1a451ea68fa74274aa04af97d8e2aefccb297e6ef61992d42e8e8cdd5b17a37fe7e8fe446d067e7a9907cf7783aca204ccb623972176614c0a0a9e47d270d2ce33b1475f500f3b9a773eb966f3f8ab5ceb738d52262bbe10cb2';
-
-      const publicKeys = [bob.public_key, tom.public_key];
-      const privateKeys = [alice.private_key];
-
-      const shardAlice = await keyring.addAccounts({ publicKeys, privateKeys, thresHold })
       const accounts = await keyring.getAccounts()
 
       const privateKey = await keyring.exportAccount(accounts[0])
       // console.log({ privateKey })
-      assert.equal(privateKey, privateKeyExpected, 'export privateKey as expected')
+      assert.equal(privateKey, shardAlice.privateKey, 'export privateKey as expected')
     })
   })
 
   describe('#export publicKey', () => {
     it('getPublicKeyFor', async () => {
-      const publicKeyExpected = '0x547c6a1ef36e9e99865ce7ac028ee79aff404d279b568272bc7154802d4856bbc95ddc2b2926d1a451ea68fa74274aa04af97d8e2aefccb297e6ef61992d42e8e8cdd5b17a37fe7e8fe446d067e7a9907cf7783aca204ccb623972176614c0a002';
-      const publicKeys = [bob.public_key, tom.public_key];
-      const privateKeys = [alice.private_key];
-
-      const shardAlice = await keyring.addAccounts({ publicKeys, privateKeys, thresHold })
       const accounts = await keyring.getAccounts()
 
       const publicKey = await keyring.getPublicKeyFor(accounts[0])
       // console.log({ publicKey })
-      assert.equal(publicKey, publicKeyExpected, 'export publicKey as expected')
+      assert.equal(publicKey, shardAlice.publicKey, 'export publicKey as expected')
     })
   })
 
   describe('#export receiptIdentifier', () => {
     it('getReceiptIdentifier', async () => {
-      const receiptIdentifierExpected = 'stc1pk42a3vr0a45hdxppuxym295gwq38kuqj';
-      const publicKeys = [bob.public_key, tom.public_key];
-      const privateKeys = [alice.private_key];
-
-      const shardAlice = await keyring.addAccounts({ publicKeys, privateKeys, thresHold })
       const accounts = await keyring.getAccounts()
 
       const receiptIdentifier = await keyring.getReceiptIdentifier(accounts[0])
       // console.log({ receiptIdentifier })
-      assert.equal(receiptIdentifier, receiptIdentifierExpected, 'export receiptIdentifier as expected')
+      assert.equal(receiptIdentifier, shardAlice.receiptIdentifier, 'export receiptIdentifier as expected')
+    })
+  })
+
+  describe('#serialize', () => {
+    it('serialize', async () => {
+      const keyPairs = await keyring.serialize()
+      console.log({ keyPairs })
+      assert.equal(keyPairs.length, 1, 'shardAlice should be serialized')
+    })
+  })
+
+  describe('#deserialize', () => {
+    it('deserialize', async () => {
+      const keyPairs = await keyring.serialize()
+      keyring2 = new MutiSignKeyring()
+      await keyring2.deserialize(keyPairs)
+      const accounts = await keyring2.getAccounts()
+      const publicKey = await keyring2.getPublicKeyFor(accounts[0])
+      console.log({ publicKey })
+      console.log(keyring2.accounts)
+      assert.equal(publicKey, shardAlice.publicKey, 'export publicKey as expected')
     })
   })
 })

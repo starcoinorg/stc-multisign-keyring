@@ -19,19 +19,17 @@ class MutiSignKeyring extends EventEmitter {
   }
 
   serialize() {
-    return Promise.resolve(this.wallets.map(w => ({ privateKey: w.getPrivateKey().toString('hex'), publicKey: w.getPublicKey().toString('hex') })))
+    return Promise.resolve(Object.keys(this.accounts).map(k => {
+      const account = this.accounts[k];
+      return { address: k, ...account };
+    }))
   }
 
   deserialize(keyPairs = []) {
     return new Promise((resolve, reject) => {
       try {
-        this.wallets = keyPairs.map(({ privateKey, publicKey }) => {
-          const privateKeyStripped = stcUtil.stripHexPrefix(privateKey)
-          const privateKeyBuffer = Buffer.from(privateKeyStripped, 'hex')
-          const publicKeyStripped = stcUtil.stripHexPrefix(publicKey)
-          const publicKeyBuffer = Buffer.from(publicKeyStripped, 'hex')
-          const wallet = Wallet.fromPrivatePublic(privateKeyBuffer, publicKeyBuffer);
-          return wallet
+        keyPairs.forEach(({ address, privateKeys, publicKeys, thresHold }) => {
+          this.accounts[address] = { privateKeys, publicKeys, thresHold }
         })
       } catch (e) {
         reject(e)
@@ -49,11 +47,11 @@ class MutiSignKeyring extends EventEmitter {
           .createMultiEd25519KeyShard(publicKeys, privateKeys, thresHold)
           .then((shard) => {
             // console.log({ shard })
-            const multiAccount = utils.account.showMultiEd25519Account(shard);
-            if (Object.keys(this.accounts).includes(multiAccount.address)) {
+            const address = utils.account.getMultiEd25519AccountAddress(shard);
+            if (Object.keys(this.accounts).includes(address)) {
               reject(new Error('address already exists'))
             }
-            this.accounts[multiAccount.address] = multiAccount;
+            this.accounts[address] = { publicKeys, privateKeys, thresHold };
             return resolve(Object.keys(this.accounts))
           });
 
@@ -65,7 +63,7 @@ class MutiSignKeyring extends EventEmitter {
   }
 
   getAccounts() {
-    // console.log(this.accounts)
+    console.log(this.accounts)
     return Promise.resolve(Object.keys(this.accounts))
   }
 
@@ -161,8 +159,7 @@ class MutiSignKeyring extends EventEmitter {
 
   // get public key
   getPublicKeyFor(address) {
-    const account = this._getAccountForAddress(address)
-    return Promise.resolve(account.publicKey)
+    return this._getShardForAddress(address).then(shard => utils.account.getMultiEd25519AccountPublicKey(shard))
   }
 
   // returns an address specific to an app
@@ -182,8 +179,7 @@ class MutiSignKeyring extends EventEmitter {
 
   // exportAccount should return a hex-encoded private key:
   exportAccount(address) {
-    const account = this._getAccountForAddress(address)
-    return Promise.resolve(account.privateKey)
+    return this._getShardForAddress(address).then(shard => utils.account.getMultiEd25519AccountPrivateKey(shard))
   }
 
   removeAccount(address) {
@@ -194,21 +190,29 @@ class MutiSignKeyring extends EventEmitter {
   }
 
   getReceiptIdentifier(address) {
-    const account = this._getAccountForAddress(address)
-    return Promise.resolve(account.receiptIdentifier)
+    return this._getShardForAddress(address).then(shard => utils.account.getMultiEd25519AccountReceiptIdentifier(shard))
   }
 
   /* PRIVATE METHODS */
 
-  _getAccountForAddress(address) {
+  _getShardForAddress(address) {
     const _address = sigUtil.normalize(address)
-    let account = this.accounts[_address]
-    if (!account) {
-      throw new Error('MultiSign Keyring - Unable to find matching address.')
-    }
-    return account
+    return new Promise((resolve, reject) => {
+      const account = this.accounts[_address]
+      if (!account) {
+        reject(new Error('MultiSign Keyring - Unable to find matching address.'))
+      }
+      try {
+        utils.multiSign
+          .createMultiEd25519KeyShard(account.publicKeys, account.privateKeys, account.thresHold)
+          .then((shard) => {
+            return resolve(shard)
+          });
+      } catch (e) {
+        reject(e)
+      }
+    })
   }
-
 }
 
 MutiSignKeyring.type = type
