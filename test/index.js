@@ -22,7 +22,7 @@ const testAccount = {
 
 
 // Implemention of multi sign in https://starcoin.org/zh/developer/cli/multisig_account/
-const thresHold = 2;
+const threshold = 2;
 
 const alice = {
   'address': '0xd597bcfa4d3464b98bea990ce21aca06',
@@ -42,6 +42,12 @@ const tom = {
   'private_key': '0x359059828e89fe42dddd5f9571a0c623b071379fc6287c712649dcc8c77f5eb4'
 }
 
+const eva = {
+  'address': '0x461EEf2B0c1367fFB63F218Aa3F7A384',
+  'public_key': '0xf704bb7bf4122af526978c9059172fee28a4c4d7af50e3ff6f576006ca26e1b6',
+  'private_key': '0x38c5e7cf27f3cf9e46391dad77a7d65fbdc04b3b188b8c60b7fc4d4262598a3a'
+}
+
 const shardAlice = {
   address: '0xb555d8b06fed69769821e189b5168870',
   privateKey: '0x030201547c6a1ef36e9e99865ce7ac028ee79aff404d279b568272bc7154802d4856bbc95ddc2b2926d1a451ea68fa74274aa04af97d8e2aefccb297e6ef61992d42e8e8cdd5b17a37fe7e8fe446d067e7a9907cf7783aca204ccb623972176614c0a0a9e47d270d2ce33b1475f500f3b9a773eb966f3f8ab5ceb738d52262bbe10cb2',
@@ -53,13 +59,13 @@ describe('multi-keyring', () => {
 
   let keyring
   beforeEach(async () => {
-    keyring = new MutiSignKeyring()
-    // console.log(keyring)
-    const publicKeys = [bob.public_key, tom.public_key];
-    const privateKeys = [alice.private_key];
+    // keyring = new MutiSignKeyring()
+    // // console.log(keyring)
+    // const publicKeys = [bob.public_key, tom.public_key];
+    // const privateKeys = [alice.private_key];
 
-    const shardAlice = await keyring.addAccounts({ publicKeys, privateKeys, thresHold })
-    // console.log({ shardAlice })
+    // const shardAlice = await keyring.addAccounts({ publicKeys, privateKeys, threshold })
+    // // console.log({ shardAlice })
   })
 
   describe('Keyring.type', () => {
@@ -97,7 +103,7 @@ describe('multi-keyring', () => {
         const publicKeys = [alice.public_key, bob.public_key];
         const privateKeys = [tom.private_key];
 
-        shardTom = await keyring.addAccounts({ publicKeys, privateKeys, thresHold })
+        shardTom = await keyring.addAccounts({ publicKeys, privateKeys, threshold })
         console.log({ shardTom })
       } catch (error) {
         console.log({ error })
@@ -149,14 +155,32 @@ describe('multi-keyring', () => {
 
   describe('#deserialize', () => {
     it('deserialize', async () => {
-      const keyPairs = await keyring.serialize()
-      keyring2 = new MutiSignKeyring()
-      await keyring2.deserialize(keyPairs)
+      // const keyPairs = await keyring.serialize()
+      // console.log({ keyPairs })
+      // console.log('-------')
+      const publicKeys = [bob.public_key, tom.public_key];
+      const privateKeys = [alice.private_key];
+
+      const keyPairs = [
+        { privateKeys, publicKeys, threshold },
+      ]
+      keyring2 = new MutiSignKeyring(keyPairs)
+      console.log({ keyring2 })
       const accounts = await keyring2.getAccounts()
+      console.log({ accounts })
+      const accounts2 = await keyring2.getAccounts()
+      console.log({ accounts2 })
       const publicKey = await keyring2.getPublicKeyFor(accounts[0])
       console.log({ publicKey })
       console.log(keyring2.accounts)
       assert.equal(publicKey, shardAlice.publicKey, 'export publicKey as expected')
+
+      const publicKeys2 = [alice.public_key, tom.public_key];
+      const privateKeys2 = [eva.private_key];
+      const accounts3 = await keyring2.addAccounts({ privateKeys: privateKeys2, publicKeys: publicKeys2, threshold })
+      console.log({ accounts3 })
+      const accounts4 = await keyring2.getAccounts()
+      console.log({ accounts4 })
     })
   })
 })

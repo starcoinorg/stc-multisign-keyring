@@ -14,47 +14,41 @@ class MutiSignKeyring extends EventEmitter {
     super()
     this.type = type
     this.wallets = []
-    this.accounts = {}
+    this.accounts = []
     this.deserialize(opts)
   }
 
   serialize() {
-    return Promise.resolve(Object.keys(this.accounts).map(k => {
-      const account = this.accounts[k];
-      return { address: k, ...account };
+    return Promise.resolve(this.accounts.map(account => {
+      // ignore address, shard
+      const { publicKeys, privateKeys, threshold } = account;
+      return { publicKeys, privateKeys, threshold }
     }))
   }
 
   deserialize(keyPairs = []) {
-    return new Promise((resolve, reject) => {
-      try {
-        keyPairs.forEach(({ address, privateKeys, publicKeys, thresHold }) => {
-          this.accounts[address] = { privateKeys, publicKeys, thresHold }
-        })
-      } catch (e) {
-        reject(e)
-      }
-      resolve()
-    })
+    this.accounts = keyPairs
+    return Promise.resolve(this.accounts)
   }
 
-  addAccounts(params) {
-    const { publicKeys = [], privateKeys = [], thresHold = 1 } = params
-    // console.log({ publicKeys, privateKeys, thresHold })
+
+  addAccounts(args) {
+    const { publicKeys = [], privateKeys = [], threshold = 1 } = args
+    // console.log({ publicKeys, privateKeys, threshold })
     return new Promise((resolve, reject) => {
       try {
         utils.multiSign
-          .createMultiEd25519KeyShard(publicKeys, privateKeys, thresHold)
+          .createMultiEd25519KeyShard(publicKeys, privateKeys, threshold)
           .then((shard) => {
             // console.log({ shard })
             const address = utils.account.getMultiEd25519AccountAddress(shard);
-            if (Object.keys(this.accounts).includes(address)) {
-              reject(new Error('address already exists'))
+            const accounts = this.accounts.filter(account => account.address === address)
+            if (accounts.length > 0) {
+              reject(new Error('MultiSign Keyring - address already exists.'))
             }
-            this.accounts[address] = { publicKeys, privateKeys, thresHold };
-            return resolve(Object.keys(this.accounts))
+            this.accounts.push({ publicKeys, privateKeys, threshold, address, shard });
+            return resolve(this.getAccounts())
           });
-
       } catch (e) {
         log.Error(e)
         reject(e)
@@ -64,7 +58,27 @@ class MutiSignKeyring extends EventEmitter {
 
   getAccounts() {
     console.log(this.accounts)
-    return Promise.resolve(Object.keys(this.accounts))
+    const accountPromises = this.accounts.map(
+      ({ publicKeys, privateKeys, threshold, address }, index) => {
+        console.log({ publicKeys, privateKeys, threshold, address });
+        if (address) {
+          return address;
+        } else { }
+        return utils.multiSign
+          .createMultiEd25519KeyShard(publicKeys, privateKeys, threshold)
+          .then((shard) => {
+            console.log({ shard })
+            const _address = utils.account.getMultiEd25519AccountAddress(shard);
+            console.log({ address, _address, index })
+            this.accounts[index].address = _address
+            this.accounts[index].shard = shard
+            return _address;
+          })
+      }
+    );
+    const result = Promise.all(accountPromises)
+    console.log({ result })
+    return Promise.resolve(result)
   }
 
   // tx is rawUserTransaction.
@@ -198,19 +212,11 @@ class MutiSignKeyring extends EventEmitter {
   _getShardForAddress(address) {
     const _address = sigUtil.normalize(address)
     return new Promise((resolve, reject) => {
-      const account = this.accounts[_address]
-      if (!account) {
+      const accounts = this.accounts.filter(account => account.address === _address)
+      if (!accounts.length > 0) {
         reject(new Error('MultiSign Keyring - Unable to find matching address.'))
       }
-      try {
-        utils.multiSign
-          .createMultiEd25519KeyShard(account.publicKeys, account.privateKeys, account.thresHold)
-          .then((shard) => {
-            return resolve(shard)
-          });
-      } catch (e) {
-        reject(e)
-      }
+      resolve(accounts[0].shard)
     })
   }
 }
