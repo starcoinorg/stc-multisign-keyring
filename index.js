@@ -62,18 +62,19 @@ class MutiSignKeyring extends EventEmitter {
       ({ publicKeys, privateKeys, threshold, address }, index) => {
         console.log({ publicKeys, privateKeys, threshold, address });
         if (address) {
-          return address;
-        } else { }
-        return utils.multiSign
-          .createMultiEd25519KeyShard(publicKeys, privateKeys, threshold)
-          .then((shard) => {
-            console.log({ shard })
-            const _address = utils.account.getMultiEd25519AccountAddress(shard);
-            console.log({ address, _address, index })
-            this.accounts[index].address = _address
-            this.accounts[index].shard = shard
-            return _address;
-          })
+          return Promise.resolve(address);
+        } else {
+          return utils.multiSign
+            .createMultiEd25519KeyShard(publicKeys, privateKeys, threshold)
+            .then((shard) => {
+              console.log({ shard })
+              const _address = utils.account.getMultiEd25519AccountAddress(shard);
+              console.log({ address, _address, index })
+              this.accounts[index].address = _address
+              this.accounts[index].shard = shard
+              return _address;
+            })
+        }
       }
     );
     const result = Promise.all(accountPromises)
@@ -197,10 +198,10 @@ class MutiSignKeyring extends EventEmitter {
   }
 
   removeAccount(address) {
-    if (!this.wallets.map(w => stcUtil.bufferToHex(w.getAddress()).toLowerCase()).includes(address.toLowerCase())) {
+    if (!this.accounts.map(account => account.address && account.address.toLowerCase() === address.toLowerCase())) {
       throw new Error(`Address ${address} not found in this keyring`)
     }
-    this.wallets = this.wallets.filter(w => stcUtil.bufferToHex(w.getAddress()).toLowerCase() !== address.toLowerCase())
+    this.accounts = this.accounts.filter(account => account.address.toLowerCase() !== address.toLowerCase())
   }
 
   getReceiptIdentifier(address) {

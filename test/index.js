@@ -154,7 +154,7 @@ describe('multi-keyring', () => {
   })
 
   describe('#deserialize', () => {
-    it('deserialize', async () => {
+    it('deserialize & removeAccount', async () => {
       // const keyPairs = await keyring.serialize()
       // console.log({ keyPairs })
       // console.log('-------')
@@ -181,6 +181,11 @@ describe('multi-keyring', () => {
       console.log({ accounts3 })
       const accounts4 = await keyring2.getAccounts()
       console.log({ accounts4 })
+
+      keyring2.removeAccount('0x3db2e0b939963a80d60ae1218a47d75a')
+      const accounts5 = await keyring2.getAccounts()
+      console.log({ accounts5 })
+
     })
   })
 })
