@@ -1,9 +1,11 @@
 const assert = require('assert')
 const ethUtil = require('ethereumjs-util')
 const sigUtil = require('eth-sig-util')
-const MutiSignKeyring = require('../')
+const { utils, encoding, providers, starcoin_types } = require('@starcoin/starcoin')
 const EthereumTx = require('ethereumjs-tx').Transaction
 const { expect } = require('chai')
+const log = require('loglevel')
+const MutiSignKeyring = require('../')
 
 const TYPE_STR = 'Multi Sign'
 
@@ -186,6 +188,74 @@ describe('multi-keyring', () => {
       const accounts5 = await keyring2.getAccounts()
       console.log({ accounts5 })
 
+    })
+  })
+  describe('#signTransaction', () => {
+    it('signTransaction', async () => {
+      const publicKeys = [bob.public_key, tom.public_key];
+      const privateKeys = [alice.private_key];
+
+      const keyPairs = [
+        { privateKeys, publicKeys, threshold },
+      ]
+      keyring = new MutiSignKeyring(keyPairs)
+      console.log({ keyring })
+      const accounts = await keyring.getAccounts()
+      console.log({ accounts })
+
+      const senderAddress = accounts[0]
+      const receiverAddress = bob.address
+      const amount = 1000000000
+      const functionId = '0x1::TransferScripts::peer_to_peer_v2'
+      const typeArgs = ['0x1::STC::STC']
+      const args = [
+        receiverAddress,
+        amount,
+      ]
+      const nodeUrl = 'http://localhost:9850'
+      const chainId = 254
+      const scriptFunction = await utils.tx.encodeScriptFunctionByResolve(functionId, typeArgs, args, nodeUrl);
+
+      const payloadInHex = encoding.bcsEncode(scriptFunction);
+      console.log(payloadInHex)
+
+      const provider = new providers.JsonRpcProvider(nodeUrl);
+      const senderSequenceNumber = await provider.getSequenceNumber(
+        senderAddress
+      );
+      const maxGasAmount = 10000000n;
+      const gasUnitPrice = 1;
+      const nowSeconds = await provider.getNowSeconds();
+      // expired after 12 hours since Unix Epoch
+      const expiredSecs = 43200
+      const expirationTimestampSecs = nowSeconds + expiredSecs
+
+      // hard coded in rust
+      // const expirationTimestampSecs = 3005
+
+      const rawUserTransaction = utils.tx.generateRawUserTransaction(
+        senderAddress,
+        scriptFunction,
+        maxGasAmount,
+        gasUnitPrice,
+        senderSequenceNumber,
+        expirationTimestampSecs,
+        chainId
+      );
+      console.log({ rawUserTransaction })
+
+      const rawUserTransactionHex = encoding.bcsEncode(rawUserTransaction)
+      console.log({ rawUserTransactionHex })
+
+      const signedTransactionHex = await keyring.signTransaction(senderAddress, rawUserTransaction)
+      console.log({ signedTransactionHex })
+      const signedTransaction = encoding.bcsDecode(starcoin_types.SignedUserTransaction, signedTransactionHex)
+      console.log({ signedTransaction })
+      console.log('is multi sign=', signedTransaction.authenticator instanceof starcoin_types.TransactionAuthenticatorVariantMultiEd25519)
+      if (signedTransaction.authenticator instanceof starcoin_types.TransactionAuthenticatorVariantMultiEd25519) {
+        const existingSignatureShards = new starcoin_types.MultiEd25519SignatureShard(signedTransaction.authenticator.signature, signedTransaction.authenticator.public_key.threshold)
+        console.log('is_enough=', existingSignatureShards.is_enough())
+      }
     })
   })
 })

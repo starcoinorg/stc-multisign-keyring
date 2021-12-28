@@ -1,14 +1,14 @@
 {
-  "name": "@starcoin/stc-mutisign-keyring",
-  "version": "0.1.0",
-  "description": "A Starcoin keyring interface for muti sign accounts.",
+  "name": "@starcoin/stc-multisign-keyring",
+  "version": "0.3.0",
+  "description": "A Starcoin keyring interface for multi sign accounts.",
   "main": "index.js",
   "scripts": {
     "test": "mocha"
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/starcoinorg/stc-mutisign-keyring.git"
+    "url": "git+ssh://git@github.com/starcoinorg/stc-multisign-keyring.git"
   },
   "keywords": [
     "starcoin",
@@ -17,12 +17,12 @@
   ],
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/starcoinorg/stc-mutisign-keyring/issues"
+    "url": "https://github.com/starcoinorg/stc-multisign-keyring/issues"
   },
   "homepage": "https://github.com/starcoinorg/stc-mutisign-keyring#readme",
   "dependencies": {
     "@ethersproject/bytes": "^5.0.6",
-    "@starcoin/starcoin": "^1.7.0",
+    "@starcoin/starcoin": "^1.6.2",
     "@starcoin/stc-util": "^0.3.0",
     "@starcoin/stc-wallet": "^1.2.2",
     "eth-sig-util": "^2.5.0",

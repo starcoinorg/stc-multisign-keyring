@@ -2,8 +2,9 @@ const EventEmitter = require('events').EventEmitter
 const Wallet = require('@starcoin/stc-wallet')
 const arrayify = require('@ethersproject/bytes').arrayify
 const stcUtil = require('@starcoin/stc-util')
-const { utils, encoding } = require('@starcoin/starcoin')
+const { utils, encoding, starcoin_types } = require('@starcoin/starcoin')
 const sigUtil = require('eth-sig-util')
+const log = require('loglevel')
 
 const type = 'Multi Sign'
 class MutiSignKeyring extends EventEmitter {
@@ -57,19 +58,19 @@ class MutiSignKeyring extends EventEmitter {
   }
 
   getAccounts() {
-    console.log(this.accounts)
+    // console.log(this.accounts)
     const accountPromises = this.accounts.map(
       ({ publicKeys, privateKeys, threshold, address }, index) => {
-        console.log({ publicKeys, privateKeys, threshold, address });
+        // console.log({ publicKeys, privateKeys, threshold, address });
         if (address) {
           return Promise.resolve(address);
         } else {
           return utils.multiSign
-            .createMultiEd25519KeyShard(publicKeys, privateKeys, threshold)
+            .generateMultiEd25519KeyShard(publicKeys, privateKeys, threshold)
             .then((shard) => {
-              console.log({ shard })
+              // console.log({ shard })
               const _address = utils.account.getMultiEd25519AccountAddress(shard);
-              console.log({ address, _address, index })
+              // console.log({ address, _address, index })
               this.accounts[index].address = _address
               this.accounts[index].shard = shard
               return _address;
@@ -78,19 +79,44 @@ class MutiSignKeyring extends EventEmitter {
       }
     );
     const result = Promise.all(accountPromises)
-    console.log({ result })
+    // console.log({ result })
     return Promise.resolve(result)
   }
 
   // tx is rawUserTransaction.
   signTransaction(address, tx, opts = {}) {
-    const privKey = this.getPrivateKeyFor(address, opts);
-    const privKeyStr = stcUtil.addHexPrefix(privKey.toString('hex'))
-    const hex = utils.tx.signRawUserTransaction(
-      privKeyStr,
-      tx,
-    )
-    return Promise.resolve(hex)
+    const { authendicator: existingAuthenticator } = opts
+    console.log({ existingAuthenticator })
+    return new Promise((resolve, reject) => {
+      try {
+        this._getShardForAddress(address)
+          .then(async (shard) => {
+            // console.log({ shard })
+            const signatureShard = await utils.multiSign.generateMultiEd25519SignatureShard(shard, tx)
+            console.log({ signatureShard })
+            const count_signatures = signatureShard.signature.signatures.length
+            console.log('count_signatures', count_signatures, 'is_enough', signatureShard.is_enough())
+
+            const authenticator = new starcoin_types.TransactionAuthenticatorVariantMultiEd25519(shard.publicKey(), signatureShard.signature)
+            console.log({ authenticator })
+            const partial_signed_txn = new starcoin_types.SignedUserTransaction(tx, authenticator)
+            console.log({ partial_signed_txn })
+            const signedTxHex = encoding.bcsEncode(partial_signed_txn)
+            return resolve(signedTxHex)
+          });
+      } catch (e) {
+        log.Error(e)
+        reject(e)
+      }
+    })
+
+    // const privKey = this.getPrivateKeyFor(address, opts);
+    // const privKeyStr = stcUtil.addHexPrefix(privKey.toString('hex'))
+    // const hex = utils.tx.signRawUserTransaction(
+    //   privKeyStr,
+    //   tx,
+    // )
+    // return Promise.resolve(hex)
   }
 
   // For eth_sign, we need to sign arbitrary data:
