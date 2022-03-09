@@ -1,6 +1,6 @@
 {
   "name": "@starcoin/stc-multisign-keyring",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A Starcoin keyring interface for multi sign accounts.",
   "main": "index.js",
   "scripts": {
@@ -22,7 +22,7 @@
   "homepage": "https://github.com/starcoinorg/stc-mutisign-keyring#readme",
   "dependencies": {
     "@ethersproject/bytes": "^5.0.6",
-    "@starcoin/starcoin": "^1.6.2",
+    "@starcoin/starcoin": "^1.9.0",
     "@starcoin/stc-util": "^0.3.0",
     "@starcoin/stc-wallet": "^1.2.2",
     "eth-sig-util": "^2.5.0",
