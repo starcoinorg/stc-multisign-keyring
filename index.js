@@ -41,7 +41,6 @@ class MutiSignKeyring extends EventEmitter {
         utils.multiSign
           .createMultiEd25519KeyShard(publicKeys, privateKeys, threshold)
           .then((shard) => {
-            // console.log({ shard })
             const address = utils.account.getMultiEd25519AccountAddress(shard);
             const accounts = this.accounts.filter(account => account.address === address)
             if (accounts.length > 0) {
@@ -58,19 +57,15 @@ class MutiSignKeyring extends EventEmitter {
   }
 
   getAccounts() {
-    // console.log(this.accounts)
     const accountPromises = this.accounts.map(
       ({ publicKeys, privateKeys, threshold, address }, index) => {
-        // console.log({ publicKeys, privateKeys, threshold, address });
         if (address) {
           return Promise.resolve(address);
         } else {
           return utils.multiSign
             .generateMultiEd25519KeyShard(publicKeys, privateKeys, threshold)
             .then((shard) => {
-              // console.log({ shard })
               const _address = utils.account.getMultiEd25519AccountAddress(shard);
-              // console.log({ address, _address, index })
               this.accounts[index].address = _address
               this.accounts[index].shard = shard
               return _address;
@@ -79,28 +74,34 @@ class MutiSignKeyring extends EventEmitter {
       }
     );
     const result = Promise.all(accountPromises)
-    // console.log({ result })
     return Promise.resolve(result)
   }
 
   // tx is rawUserTransaction.
   signTransaction(address, tx, opts = {}) {
-    const { authendicator: existingAuthenticator } = opts
-    console.log({ existingAuthenticator })
+    const { authenticator: existingAuthenticator } = opts
     return new Promise((resolve, reject) => {
       try {
         this._getShardForAddress(address)
           .then(async (shard) => {
-            // console.log({ shard })
             const signatureShard = await utils.multiSign.generateMultiEd25519SignatureShard(shard, tx)
-            console.log({ signatureShard })
             const count_signatures = signatureShard.signature.signatures.length
-            console.log('count_signatures', count_signatures, 'is_enough', signatureShard.is_enough())
 
-            const authenticator = new starcoin_types.TransactionAuthenticatorVariantMultiEd25519(shard.publicKey(), signatureShard.signature)
-            console.log({ authenticator })
+            let signature
+            if (existingAuthenticator) {
+              const count_signatures = existingAuthenticator.signature.signatures.length
+              const existingSignatureShards = new starcoin_types.MultiEd25519SignatureShard(existingAuthenticator.signature, existingAuthenticator.public_key.threshold)
+              const mySignatureShards = new starcoin_types.MultiEd25519SignatureShard(signatureShard.signature, existingAuthenticator.public_key.threshold)
+              const signatureShards = []
+              signatureShards.push(existingSignatureShards)
+              signatureShards.push(mySignatureShards)
+              const mergedSignatureShards = starcoin_types.MultiEd25519SignatureShard.merge(signatureShards)
+              signature = mergedSignatureShards.signature
+            } else {
+              signature = signatureShard.signature
+            }
+            const authenticator = new starcoin_types.TransactionAuthenticatorVariantMultiEd25519(shard.publicKey(), signature)
             const partial_signed_txn = new starcoin_types.SignedUserTransaction(tx, authenticator)
-            console.log({ partial_signed_txn })
             const signedTxHex = encoding.bcsEncode(partial_signed_txn)
             return resolve(signedTxHex)
           });
@@ -109,14 +110,6 @@ class MutiSignKeyring extends EventEmitter {
         reject(e)
       }
     })
-
-    // const privKey = this.getPrivateKeyFor(address, opts);
-    // const privKeyStr = stcUtil.addHexPrefix(privKey.toString('hex'))
-    // const hex = utils.tx.signRawUserTransaction(
-    //   privKeyStr,
-    //   tx,
-    // )
-    // return Promise.resolve(hex)
   }
 
   // For eth_sign, we need to sign arbitrary data:
@@ -225,7 +218,7 @@ class MutiSignKeyring extends EventEmitter {
 
   removeAccount(address) {
     if (!this.accounts.map(account => account.address && account.address.toLowerCase() === address.toLowerCase())) {
-      throw new Error(`Address ${address} not found in this keyring`)
+      throw new Error(`Address ${ address } not found in this keyring`)
     }
     this.accounts = this.accounts.filter(account => account.address.toLowerCase() !== address.toLowerCase())
   }
